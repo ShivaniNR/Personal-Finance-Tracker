@@ -1,11 +1,22 @@
 # Personal Finance Tracker
 
-A full-stack personal finance management application with secure authentication, interactive dashboards, CSV bank statement imports, and voice-powered transaction entry.
+**A smart personal finance app that helps users centralize spending, import bank statements, and make better budget decisions — with voice input, interactive analytics, and real-time insights.**
+
+> Built as a full-stack production application demonstrating end-to-end product ownership: from authentication and database security to deployment and user experience.
 
 **Live Demo:** [personal-finance-tracker.vercel.app](https://personal-finance-tracker-flnt5ffi8-shivaninrs-projects.vercel.app)
 
+## Demo
+
+<!-- TODO: Add a short demo video (Loom, YouTube, or MP4) -->
+<!-- [![Watch the demo](docs/images/demo-thumbnail.png)](https://your-demo-video-url) -->
+> Demo video coming soon.
+
 ## Table of Contents
 
+- [Why This Project](#why-this-project)
+- [What Makes This Stand Out](#what-makes-this-stand-out)
+- [Screenshots](#screenshots)
 - [Tech Stack](#tech-stack)
 - [Features](#features)
 - [Architecture](#architecture)
@@ -13,10 +24,68 @@ A full-stack personal finance management application with secure authentication,
 - [Data Flow](#data-flow)
 - [Database Schema](#database-schema)
 - [Sequence Diagrams](#sequence-diagrams)
+- [Key Challenges Solved](#key-challenges-solved)
+- [What I'd Improve Next](#what-id-improve-next)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
+
+## Why This Project
+
+Most finance tracker tutorials stop at basic CRUD. This project goes further by solving **real user pain points**:
+
+- **Manual entry is tedious** — Voice input and CSV bank statement import eliminate repetitive data entry
+- **Spending is invisible** — Interactive dashboards with category breakdowns and trend charts make spending patterns visible at a glance
+- **Budgets are forgotten** — Budget gauge and insight cards proactively surface saving opportunities and spending anomalies
+- **Data is insecure** — Row-Level Security ensures every user only sees their own data, with JWT auth and rate limiting
+
+## What Makes This Stand Out
+
+**Product Thinking:**
+- Solves a real problem with a clear user journey (import -> categorize -> track -> analyze)
+- Multi-stage CSV import wizard with bank-specific parsing and category mapping
+- Actionable insights, not just charts — saving tips, spending pattern analysis, trend detection
+
+**Technical Depth:**
+- Supabase PostgreSQL with RLS policies, triggers, and audit logging
+- React Query for intelligent caching, background refetching, and optimistic UI
+- GraphQL API with Zod validation, Helmet security headers, and rate limiting
+- Full auth flow including email recovery with password reset
+
+**Deployment Maturity:**
+- Frontend on Vercel, backend on Render, database on Supabase
+- Environment-based CORS configuration
+- Health check endpoint for monitoring
+- Error boundaries for graceful failure recovery
+
+## Screenshots
+
+### Dashboard
+Real-time financial overview with balance, income/expense cards, monthly trend charts, category breakdown, and recent transactions.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Dashboard](docs/images/dashboard.png) -->
+
+### CSV Import Workflow
+Three-stage import: select bank -> upload file -> review category mapping. Handles 23+ transactions in one import with automatic category suggestions.
+
+<!-- TODO: Replace with actual screenshots -->
+<!-- | Step 1: Select Bank | Step 2: Upload CSV | Step 3: Map Categories | -->
+<!-- |---|---|---| -->
+<!-- | ![Select Bank](docs/images/import-1.png) | ![Upload](docs/images/import-2.png) | ![Map Categories](docs/images/import-3.png) | -->
+
+### Transaction Management
+Edit transactions with type toggle, amount, description, category dropdown, and voice input support.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Edit Transaction](docs/images/edit-transaction.png) -->
+
+### Analytics
+Multi-view analytics with overview, category breakdown, and trend charts — all with time range filtering.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Analytics](docs/images/analytics.png) -->
 
 ## Tech Stack
 
@@ -336,63 +405,73 @@ sequenceDiagram
     ImportModal->>User: Show results (success/failed count)
 ```
 
+## Key Challenges Solved
+
+| Challenge | Solution |
+|-----------|----------|
+| **Date timezone bug** | `toISOString()` shifted dates by a day due to UTC conversion. Built `localDateString()` helper using local date components instead. |
+| **Password recovery UX gap** | Supabase's reset link auto-authenticates but provides no password form. Implemented `PASSWORD_RECOVERY` event detection to intercept and show a custom update form. |
+| **Stale data across tabs** | Tab-based navigation lost state on refresh. Migrated to React Router for URL-driven routing with persistent state. |
+| **CSV category mismatch** | Bank categories (e.g., "Merchandise") don't match app categories (e.g., "Shopping"). Built a mapping review step so users can correct categories before importing. |
+| **Analytics filtering was cosmetic** | Time range selector existed but didn't filter data. Rewired Analytics to fetch its own data with date parameters via `useQuery`. |
+| **Mobile navigation** | Sidebar blocked content on small screens. Added hamburger menu with overlay, auto-close on selection, and Escape key handling. |
+
+## What I'd Improve Next
+
+- **AI auto-categorization** — Use Claude to automatically categorize transactions based on description patterns, with user correction for learning
+- **Natural language search** — "Show me dining expenses last month" parsed into filtered queries
+- **Spending anomaly alerts** — Detect unusual spending patterns and notify users
+- **Monthly AI summary** — Generate plain-English financial health reports
+- **Export to CSV/PDF** — Download filtered transactions and analytics reports
+- **E2E testing** — Playwright tests for login, transaction CRUD, and CSV import flows
+- **Accessibility audit** — ARIA labels, keyboard navigation, focus management
+- **Performance** — Lazy-load charts, virtualize long transaction lists
+
 ## Project Structure
 
 ```
-finance-tracker/
-├── client/                     # React Frontend (Vite)
+Personal-Finance-Tracker/
+├── client/                          # React Frontend (Vite)
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Analytics.jsx         # Analytics page (overview, categories, trends)
-│   │   │   ├── BudgetCard.jsx        # Monthly budget gauge
-│   │   │   ├── ChartsSection.jsx     # Dashboard charts
-│   │   │   ├── Dashboard.jsx         # Main dashboard page
-│   │   │   ├── ErrorBoundary.jsx     # Error handling wrapper
-│   │   │   ├── Header.jsx            # Balance/income/expense cards
-│   │   │   ├── ImportCSVModal.jsx    # CSV import wizard
-│   │   │   ├── InsightCards.jsx      # Spending insight cards
-│   │   │   ├── Login.jsx             # Login form
-│   │   │   ├── Navigation.jsx        # Sidebar navigation
-│   │   │   ├── QuickModal.jsx        # Add/edit transaction modal
-│   │   │   ├── recentTrasactions.jsx # Recent transactions widget
-│   │   │   ├── Signup.jsx            # Registration form
-│   │   │   ├── TimeRangeFilter.jsx   # Date range selector
-│   │   │   ├── TransactionsList.jsx  # Full transaction list with pagination
-│   │   │   └── UpdatePassword.jsx    # Password recovery form
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx       # Authentication state management
-│   │   ├── lib/
-│   │   │   └── supabase.js          # Supabase client initialization
-│   │   ├── services/
-│   │   │   ├── categories.js        # Category API calls
-│   │   │   ├── dashboard.js         # Dashboard data fetching
-│   │   │   └── transactions.js      # Transaction CRUD operations
-│   │   ├── utils/
-│   │   │   ├── csvImport.js         # CSV parsing utilities
-│   │   │   ├── dateRanges.js        # Date range calculations
-│   │   │   └── parsers/             # Bank-specific CSV parsers
-│   │   ├── App.jsx                  # Root app with routing
-│   │   ├── App.css                  # Global styles
-│   │   └── main.jsx                 # Entry point
-│   ├── package.json
+│   │   │   ├── Analytics.jsx              # Analytics (overview, categories, trends)
+│   │   │   ├── BudgetCard.jsx             # Monthly budget gauge
+│   │   │   ├── ChartsSection.jsx          # Dashboard charts
+│   │   │   ├── Dashboard.jsx              # Main dashboard page
+│   │   │   ├── ErrorBoundary.jsx          # Error handling wrapper
+│   │   │   ├── Header.jsx                 # Balance/income/expense cards
+│   │   │   ├── ImportCSVModal.jsx         # CSV import wizard
+│   │   │   ├── InsightCards.jsx           # Spending insight cards
+│   │   │   ├── Login.jsx                  # Login form
+│   │   │   ├── Navigation.jsx             # Sidebar navigation
+│   │   │   ├── QuickModal.jsx             # Add/edit transaction modal
+│   │   │   ├── recentTrasactions.jsx      # Recent transactions widget
+│   │   │   ├── Signup.jsx                 # Registration form
+│   │   │   ├── TimeRangeFilter.jsx        # Date range selector
+│   │   │   ├── TransactionsList.jsx       # Transaction list + pagination
+│   │   │   └── UpdatePassword.jsx         # Password recovery form
+│   │   ├── context/AuthContext.jsx        # Auth state management
+│   │   ├── lib/supabase.js               # Supabase client
+│   │   ├── services/                      # API service layer
+│   │   ├── utils/                         # Date ranges, CSV parsing
+│   │   ├── App.jsx                        # Root app with routing
+│   │   └── main.jsx                       # Entry point
 │   └── vite.config.js
 │
-├── server/                     # Node.js Backend
+├── server/                          # Node.js Backend
 │   ├── src/
-│   │   ├── index.js            # Express + Apollo Server setup
-│   │   ├── schema.js           # GraphQL type definitions
-│   │   └── resolvers.js        # GraphQL resolvers
-│   ├── services/
-│   │   ├── supabase.js         # Admin + user-scoped Supabase clients
-│   │   └── validation.js       # Zod input validation schemas
-│   └── package.json
+│   │   ├── index.js                 # Express + Apollo Server
+│   │   ├── schema.js                # GraphQL type definitions
+│   │   └── resolvers.js             # GraphQL resolvers
+│   └── services/
+│       ├── supabase.js              # Admin + user-scoped clients
+│       └── validation.js            # Zod input schemas
 │
-├── supabase/                   # Database Migrations
-│   └── migrations/
-│       ├── 001_create_tables.sql     # Tables, indexes, enums
-│       ├── 002_rls_policies.sql      # Row-Level Security
-│       ├── 003_triggers.sql          # Auto-triggers (profile, categories, audit)
-│       └── 004_rpc_functions.sql     # Server-side RPC functions
+├── supabase/migrations/             # Database Schema
+│   ├── 001_create_tables.sql        # Tables, indexes, enums
+│   ├── 002_rls_policies.sql         # Row-Level Security
+│   ├── 003_triggers.sql             # Auto-triggers & audit
+│   └── 004_rpc_functions.sql        # Server-side functions
 │
 └── README.md
 ```
@@ -400,7 +479,6 @@ finance-tracker/
 ## Getting Started
 
 ### Prerequisites
-
 - Node.js v18+
 - A [Supabase](https://supabase.com) project
 - npm
@@ -408,38 +486,32 @@ finance-tracker/
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/ShivaniNR/Personal-Finance-Tracker.git
 cd Personal-Finance-Tracker
 
-# Install server dependencies
-cd server
-npm install
+# Server
+cd server && npm install
 
-# Install client dependencies
-cd ../client
-npm install
+# Client
+cd ../client && npm install
 ```
 
 ### Database Setup
 
-1. Create a new project on [Supabase](https://supabase.com)
-2. Run the migration files in order in the Supabase SQL Editor:
-   - `supabase/migrations/001_create_tables.sql`
-   - `supabase/migrations/002_rls_policies.sql`
-   - `supabase/migrations/003_triggers.sql`
-   - `supabase/migrations/004_rpc_functions.sql`
+Run these migrations in order in the Supabase SQL Editor:
+1. `supabase/migrations/001_create_tables.sql`
+2. `supabase/migrations/002_rls_policies.sql`
+3. `supabase/migrations/003_triggers.sql`
+4. `supabase/migrations/004_rpc_functions.sql`
 
 ### Running Locally
 
 ```bash
-# Terminal 1 — Start the server
-cd server
-npm run dev       # Runs on http://localhost:4000
+# Terminal 1
+cd server && npm run dev     # http://localhost:4000
 
-# Terminal 2 — Start the client
-cd client
-npm run dev       # Runs on http://localhost:5173
+# Terminal 2
+cd client && npm run dev     # http://localhost:5173
 ```
 
 ## Deployment
