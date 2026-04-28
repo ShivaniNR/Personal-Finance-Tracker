@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Mic } from 'lucide-react';
-import { usePromptAPI } from '../hooks/usePromptAPI';
+// import { parseTransactionAI } from '../services/ai'; // AI feature — uncomment when ready
+import { getUserCategories } from '../services/categories';
 
 
 export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoiceMode, editingTransaction }) => {
@@ -8,11 +11,23 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
   const [description, setDescription] = useState('');
   const [type, setType] = useState('EXPENSE');
   const [category, setCategory] = useState('');
+  const [date, setDate] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
-  const { isReady, parseTransaction, error: promptError } = usePromptAPI();
+
+  const { data: userCategories = [] } = useQuery({
+    queryKey: ['userCategories'],
+    queryFn: getUserCategories,
+    enabled: isOpen,
+  });
 
   const isEditing = !!editingTransaction;
+
+  // Today's local date in YYYY-MM-DD
+  const todayLocal = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
 
   //populate form when editing
   useEffect(() => {
@@ -21,12 +36,14 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
       setDescription(editingTransaction.description);
       setType(editingTransaction.type);
       setCategory(editingTransaction.category);
+      setDate(editingTransaction.date || todayLocal());
     }
     else{
       setAmount('');
       setDescription('');
       setType('EXPENSE');
       setCategory('');
+      setDate(todayLocal());
     }
   }, [editingTransaction, isOpen])
 
@@ -38,6 +55,7 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
         amount: parseFloat(amount),
         description,
         type,
+        date,
         ...(category && { category })
       };
 
@@ -46,13 +64,13 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
         transactionData.id = editingTransaction.id;
       }
 
-
       onSubmit(transactionData);
       // Only reset form if adding new transaction
       if (!isEditing) {
         setAmount('');
         setDescription('');
         setCategory('');
+        setDate(todayLocal());
       }
       onClose();
     }
@@ -60,7 +78,7 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
 
   const startVoiceInput = () => {
     if (!('webkitSpeechRecognition' in window)) {
-      alert('Speech recognition not supported in this browser');
+      toast.error('Speech recognition is not supported in this browser. Try Chrome or Edge.');
       return;
     }
 
@@ -70,11 +88,9 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
 
     recognition.onstart = () => {
       setIsListening(true);
-      console.log("Ready to listen");
     };
 
     recognition.onresult = (event) => {
-      console.log('Speech recognized:', event);
       const transcript = event.results[0][0].transcript;
       parseVoiceInput(transcript);
       setIsListening(false);
@@ -86,58 +102,35 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
 
     recognition.onerror = () => {
       setIsListening(false);
-      alert('Could not recognize speech. Please try again.');
+      toast.error('Could not recognize speech. Please try again.');
     };
 
     recognition.start();
   };
 
-  const parseVoiceInput = async (transcript) => {
-    // Simple parsing - in real app, you'd use OpenAI API
-    const text = transcript.toLowerCase();
-    // const amountMatch = text.match(/(\d+(?:\.\d{2})?)/);
-    // const spentWords = ['spent', 'paid', 'bought', 'purchase'];
-    // const earnedWords = ['earned', 'received', 'got paid', 'income'];
-    
-    
-    
-    // const isExpense = spentWords.some(word => text.includes(word));
-    // const isIncome = earnedWords.some(word => text.includes(word));
-
-    //PromptAPI using for better parsing
-    setIsParsing(true);
-    try{
-      const parsedTransaction = await parseTransaction(text);
-        if (parsedTransaction.amount) {
-          setAmount(parsedTransaction.amount);
-        }
-
-        if (parsedTransaction.type === 'INCOME') {
-          setType('INCOME');
-        } else {
-          setType('EXPENSE');
-        }
-      setCategory(parsedTransaction.category || '');
-      
-      setDescription(parsedTransaction.description || transcript);
-      }catch(err){
-        console.error('Error parsing transaction:', err);
-        alert('Could not parse transaction. Please try again.');
-      }
-      setIsParsing(false);
+  // AI parsing — uncomment when ready
+  // const parseVoiceInput = async (transcript) => {
+  //   setIsParsing(true);
+  //   try {
+  //     const parsed = await parseTransactionAI(transcript);
+  //     if (parsed.amount) setAmount(parsed.amount);
+  //     if (parsed.type) setType(parsed.type);
+  //     setCategory(parsed.category || '');
+  //     setDescription(parsed.description || transcript);
+  //     if (parsed.date) {
+  //       setDate(parsed.date);
+  //     }
+  //   } catch (err) {
+  //     console.error('Error parsing transaction:', err);
+  //     toast.error('Could not parse transaction. Please try again or enter manually.');
+  //   }
+  //   setIsParsing(false);
+  // };
+  const parseVoiceInput = (transcript) => {
+    setDescription(transcript);
   };
 
   if (!isOpen) return null;
-
-  if (promptError) {
-    return (
-      <div className="voice-input-error">
-        <p>Prompt API not available: {promptError}</p>
-        <p>Please use manual entry instead.</p>
-        {/* <button onClick={onCancel}>Cancel</button> */}
-      </div>
-    );
-  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -194,29 +187,61 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
                 type="button"
                 className={`voice-btn ${isListening ? 'listening' : ''}`}
                 onClick={startVoiceInput}
-                disabled={isListening || isParsing  || !isReady}
+                disabled={isListening || isParsing}
               >
                 <Mic size={16} />
               </button>
             </div>
-            {!isReady && <p>🤖 Loading AI assistant...</p>}
             {isListening && <p className="voice-status">Listening... speak now!</p>}
-            {isParsing && <p>🧠 Analyzing transaction...</p>}
+            {isParsing && <p className="voice-status">Analyzing transaction...</p>}
           </div>
 
           <div className="form-group">
             <label>Category</label>
-            <div className="description-input">
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="What is the category?"
-              />
-            </div>
-            {isListening && <p className="voice-status">Listening... speak now!</p>}
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '12px',
+                fontSize: '1rem',
+                color: '#1a202c',
+                background: 'white',
+                cursor: 'pointer',
+                transition: 'border-color 0.2s ease',
+                appearance: 'auto',
+              }}
+            >
+              <option value="">Select a category</option>
+              {userCategories.map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
           </div>
-          
+
+          <div className="form-group">
+            <label>Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '12px',
+                fontSize: '1rem',
+                fontFamily: 'inherit',
+                color: '#1a202c',
+                background: 'white',
+                cursor: 'pointer',
+                transition: 'border-color 0.2s ease',
+              }}
+            />
+          </div>
+
           <div className="modal-actions">
             <button type="button" className="cancel-btn" onClick={onClose}>
               Cancel

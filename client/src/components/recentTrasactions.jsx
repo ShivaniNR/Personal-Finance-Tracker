@@ -1,10 +1,10 @@
 import{ TrendingDown, TrendingUp } from 'lucide-react';
 
-export const RecentTransactions = ({ transactions }) => (
+export const RecentTransactions = ({ transactions, onSeeAll }) => (
   <div className="recent-transactions">
     <div className="section-header">
       <h3>Recent Transactions</h3>
-      <button className="see-all-btn">See All</button>
+      <button className="see-all-btn" onClick={onSeeAll}>See All</button>
     </div>
     
     <div className="transactions-list">

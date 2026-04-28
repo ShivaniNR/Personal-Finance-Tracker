@@ -1,77 +1,103 @@
-import React, { useState } from 'react';
-import { Search, Filter, Calendar, ArrowUpDown, Edit3, Trash2 } from 'lucide-react';
-import { useQuery, useMutation } from '@apollo/client';
-import { GET_DASHBOARD, DELETE_TRANSACTION, UPDATE_TRANSACTION } from '../graphql/finance-tracker';
+import { useState } from 'react';
+import { Search, Filter, ArrowUpDown, Edit3, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { getTransactions, updateTransaction, deleteTransaction } from '../services/transactions';
+import { getUserCategories } from '../services/categories';
 import './TransactionsList.css';
 import { useQuickModal } from '../hooks/useQuickModal';
 import { QuickAddModal } from './QuickModal';
+
+const PAGE_SIZE = 20;
 
 export const TransactionsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Handle transaction update
-  const [updateTransaction] = useMutation(UPDATE_TRANSACTION, {
-          refetchQueries: [{ query: GET_DASHBOARD }]
-      });
+  const queryClient = useQueryClient();
+
+  // Fetch all transactions
+  const { data: transactions = [], isLoading, error } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: () => getTransactions({ limit: 200 }),
+  });
+
+  // Fetch user categories for the filter dropdown
+  const { data: userCategories = [] } = useQuery({
+    queryKey: ['userCategories'],
+    queryFn: getUserCategories,
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...updates }) => updateTransaction(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Transaction updated successfully');
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteTransaction(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Transaction deleted');
+    },
+  });
 
   const handleUpdateTransaction = async (transactionData) => {
     try {
-      await updateTransaction({
-        variables: transactionData
-      });
-      console.log('Transaction updated successfully');
+      await updateMutation.mutateAsync(transactionData);
     } catch (err) {
-      console.error('Error updating transaction:', err);
-      alert('Error updating transaction. Please try again.');
+      toast.error('Failed to update transaction. Please try again.');
     }
   };
 
-  // Modal state
   const {
-      isOpen,
-      openModal,
-      closeModal,
-      editingTransaction,
-      isVoiceMode,
-      setIsVoiceMode,
-      onSubmitHandler,
-    } = useQuickModal(handleUpdateTransaction);
+    isOpen,
+    openModal,
+    closeModal,
+    editingTransaction,
+    isVoiceMode,
+    setIsVoiceMode,
+    onSubmitHandler,
+  } = useQuickModal(handleUpdateTransaction);
 
-  // Add mutation for updating transactions
-  // const [updateTransaction] = useMutation(UPDATE_TRANSACTION, {
-  //   refetchQueries: [{ query: GET_DASHBOARD }]
-  // });
+  if (isLoading) return <div className="loading-spinner"></div>;
+  if (error)
+    return <div className="error-message">Error loading transactions</div>;
 
-  const { loading, error, data, refetch } = useQuery(GET_DASHBOARD);
-//   const [deleteTransaction] = useMutation(DELETE_TRANSACTION, {
-//     onCompleted: () => refetch()
-//   });
-
-  if (loading) return <div className="loading-spinner"></div>;
-  if (error) return <div className="error-message">Error loading transactions</div>;
-
-  const transactions = data?.dashboard?.recentTransactions || [];
-  
   // Filter and sort transactions
   const filteredTransactions = transactions
-    .filter(transaction => {
-      const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           transaction.category.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || transaction.category === filterCategory;
+    .filter((transaction) => {
+      const matchesSearch =
+        transaction.description
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        transaction.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory =
+        filterCategory === 'all' || transaction.category === filterCategory;
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
+
       if (sortBy === 'date') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -79,23 +105,34 @@ export const TransactionsList = () => {
       }
     });
 
-  const categories = [...new Set(transactions.map(t => t.category))];
+  // Pagination
+  const totalPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
-  const [deleteTransaction] = useMutation(DELETE_TRANSACTION, {
-          refetchQueries: [{ query: GET_DASHBOARD }]
-      });
+  // Reset to page 1 when filters change
+  const handleSearch = (val) => { setSearchTerm(val); setCurrentPage(1); };
+  const handleCategoryFilter = (val) => { setFilterCategory(val); setCurrentPage(1); };
+  const handleSort = (val) => {
+    const [field, order] = val.split('-');
+    setSortBy(field);
+    setSortOrder(order);
+    setCurrentPage(1);
+  };
+
+  const categories = userCategories.map((c) => c.name);
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
-        await deleteTransaction({ variables: { id } });
+        await deleteMutation.mutateAsync(id);
       } catch (err) {
-        alert('Error deleting transaction');
+        toast.error('Failed to delete transaction');
       }
     }
   };
-
-  
 
   return (
     <div className="transactions-page">
@@ -112,7 +149,7 @@ export const TransactionsList = () => {
             type="text"
             placeholder="Search transactions..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
 
@@ -121,11 +158,13 @@ export const TransactionsList = () => {
             <Filter size={16} />
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => handleCategoryFilter(e.target.value)}
             >
               <option value="all">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
               ))}
             </select>
           </div>
@@ -134,11 +173,7 @@ export const TransactionsList = () => {
             <ArrowUpDown size={16} />
             <select
               value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [field, order] = e.target.value.split('-');
-                setSortBy(field);
-                setSortOrder(order);
-              }}
+              onChange={(e) => handleSort(e.target.value)}
             >
               <option value="date-desc">Newest First</option>
               <option value="date-asc">Oldest First</option>
@@ -154,31 +189,43 @@ export const TransactionsList = () => {
         {filteredTransactions.length === 0 ? (
           <div className="empty-state">
             <p>No transactions found</p>
-            <button className="add-first-btn">Add Your First Transaction</button>
+            <button className="add-first-btn" onClick={() => openModal()}>
+              Add Your First Transaction
+            </button>
           </div>
         ) : (
-          filteredTransactions.map(transaction => (
+          paginatedTransactions.map((transaction) => (
             <div key={transaction.id} className="transaction-card">
               <div className="transaction-main">
                 <div className="transaction-info">
                   <h3>{transaction.description}</h3>
                   <div className="transaction-meta">
-                    <span className="category-tag">{transaction.category}</span>
-                    <span className="date">{new Date(transaction.date).toLocaleDateString()}</span>
+                    <span className="category-tag">
+                      {transaction.category}
+                    </span>
+                    <span className="date">
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
-                
+
                 <div className="transaction-amount-section">
-                  <div className={`amount ${transaction.type.toLowerCase()}`}>
-                    {transaction.type === 'INCOME' ? '+' : '-'}${transaction.amount.toLocaleString()}
+                  <div
+                    className={`amount ${transaction.type.toLowerCase()}`}
+                  >
+                    {transaction.type === 'INCOME' ? '+' : '-'}$
+                    {transaction.amount.toLocaleString()}
                   </div>
                   <div className="transaction-actions">
-                    <button className="edit-btn" title="Edit"
-                      onClick={() =>openModal(transaction)}>
+                    <button
+                      className="edit-btn"
+                      title="Edit"
+                      onClick={() => openModal(transaction)}
+                    >
                       <Edit3 size={16} />
                     </button>
-                    <button 
-                      className="delete-btn" 
+                    <button
+                      className="delete-btn"
                       title="Delete"
                       onClick={() => handleDelete(transaction.id)}
                     >
@@ -192,6 +239,29 @@ export const TransactionsList = () => {
         )}
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(currentPage - 1)}
+          >
+            Previous
+          </button>
+          <span className="pagination-info">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            className="pagination-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(currentPage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
+
       {/* Summary Stats */}
       <div className="transactions-summary">
         <div className="summary-item">
@@ -201,24 +271,32 @@ export const TransactionsList = () => {
         <div className="summary-item">
           <span className="label">Total Income</span>
           <span className="value income">
-            +${filteredTransactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+            +$
+            {filteredTransactions
+              .filter((t) => t.type === 'INCOME')
+              .reduce((sum, t) => sum + t.amount, 0)
+              .toLocaleString()}
           </span>
         </div>
         <div className="summary-item">
           <span className="label">Total Expenses</span>
           <span className="value expense">
-            -${filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+            -$
+            {filteredTransactions
+              .filter((t) => t.type === 'EXPENSE')
+              .reduce((sum, t) => sum + t.amount, 0)
+              .toLocaleString()}
           </span>
         </div>
       </div>
 
-      <QuickAddModal 
-          isOpen={isOpen}
-          onClose={closeModal}
-          onSubmit={onSubmitHandler}
-          isVoiceMode={isVoiceMode}
-          setIsVoiceMode={setIsVoiceMode}
-          editingTransaction={editingTransaction}
+      <QuickAddModal
+        isOpen={isOpen}
+        onClose={closeModal}
+        onSubmit={onSubmitHandler}
+        isVoiceMode={isVoiceMode}
+        setIsVoiceMode={setIsVoiceMode}
+        editingTransaction={editingTransaction}
       />
     </div>
   );

@@ -9,12 +9,18 @@
 -- FUNCTION 1: get_dashboard_data
 -- Returns complete dashboard payload in one call
 -- Replaces: calculateDashboardData() — 60+ lines of JS
--- Usage: supabase.rpc('get_dashboard_data')
+-- Usage: supabase.rpc('get_dashboard_data', { p_start_date, p_end_date })
+-- When dates are NULL, defaults to current month
 -- =====================================================
-CREATE OR REPLACE FUNCTION get_dashboard_data()
+CREATE OR REPLACE FUNCTION get_dashboard_data(
+  p_start_date DATE DEFAULT NULL,
+  p_end_date DATE DEFAULT NULL
+)
 RETURNS JSON AS $$
 DECLARE
   result JSON;
+  v_start DATE := COALESCE(p_start_date, date_trunc('month', CURRENT_DATE)::DATE);
+  v_end   DATE := COALESCE(p_end_date, CURRENT_DATE);
 BEGIN
   SELECT json_build_object(
     'totalBalance', (
@@ -23,20 +29,21 @@ BEGIN
       ), 0)
       FROM transactions
       WHERE user_id = auth.uid()
+        AND date BETWEEN v_start AND v_end
     ),
     'monthlyIncome', (
       SELECT COALESCE(SUM(amount), 0)
       FROM transactions
       WHERE user_id = auth.uid()
         AND type = 'INCOME'
-        AND date >= date_trunc('month', CURRENT_DATE)
+        AND date BETWEEN v_start AND v_end
     ),
     'monthlyExpenses', (
       SELECT COALESCE(SUM(amount), 0)
       FROM transactions
       WHERE user_id = auth.uid()
         AND type = 'EXPENSE'
-        AND date >= date_trunc('month', CURRENT_DATE)
+        AND date BETWEEN v_start AND v_end
     ),
     'categorySummary', (
       SELECT COALESCE(json_agg(row_to_json(cs)), '[]'::json)
@@ -52,7 +59,9 @@ BEGIN
           ) AS percentage
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
-        WHERE t.user_id = auth.uid() AND t.type = 'EXPENSE'
+        WHERE t.user_id = auth.uid()
+          AND t.type = 'EXPENSE'
+          AND t.date BETWEEN v_start AND v_end
         GROUP BY c.name, c.icon, c.color
         ORDER BY total DESC
       ) cs
@@ -67,7 +76,7 @@ BEGIN
           SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END) AS balance
         FROM transactions
         WHERE user_id = auth.uid()
-          AND date >= date_trunc('month', CURRENT_DATE) - INTERVAL '5 months'
+          AND date BETWEEN v_start AND v_end
         GROUP BY date_trunc('month', date)
         ORDER BY date_trunc('month', date)
       ) ms
@@ -81,9 +90,15 @@ BEGIN
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE t.user_id = auth.uid()
+          AND t.date BETWEEN v_start AND v_end
         ORDER BY t.date DESC, t.created_at DESC
         LIMIT 10
       ) rt
+    ),
+    'monthlyBudget', (
+      SELECT monthly_budget
+      FROM profiles
+      WHERE id = auth.uid()
     )
   ) INTO result;
 
