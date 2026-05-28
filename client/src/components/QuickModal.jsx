@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Mic } from 'lucide-react';
-// import { parseTransactionAI } from '../services/ai'; // AI feature — uncomment when ready
+import { parseTransactionAI } from '../services/ai'; // AI feature
 import { getUserCategories } from '../services/categories';
 
 
@@ -109,26 +109,26 @@ export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoi
   };
 
   // AI parsing — uncomment when ready
-  // const parseVoiceInput = async (transcript) => {
-  //   setIsParsing(true);
-  //   try {
-  //     const parsed = await parseTransactionAI(transcript);
-  //     if (parsed.amount) setAmount(parsed.amount);
-  //     if (parsed.type) setType(parsed.type);
-  //     setCategory(parsed.category || '');
-  //     setDescription(parsed.description || transcript);
-  //     if (parsed.date) {
-  //       setDate(parsed.date);
-  //     }
-  //   } catch (err) {
-  //     console.error('Error parsing transaction:', err);
-  //     toast.error('Could not parse transaction. Please try again or enter manually.');
-  //   }
-  //   setIsParsing(false);
-  // };
-  const parseVoiceInput = (transcript) => {
-    setDescription(transcript);
+  const parseVoiceInput = async (transcript) => {
+    setIsParsing(true);
+    try {
+      const parsed = await parseTransactionAI(transcript);
+      if (parsed.amount) setAmount(parsed.amount);
+      if (parsed.type) setType(parsed.type);
+      setCategory(parsed.category || '');
+      setDescription(parsed.description || transcript);
+      if (parsed.date) {
+        setDate(parsed.date);
+      }
+    } catch (err) {
+      console.error('Error parsing transaction:', err);
+      toast.error('Could not parse transaction. Please try again or enter manually.');
+    }
+    setIsParsing(false);
   };
+  // const parseVoiceInput = (transcript) => {
+  //   setDescription(transcript);
+  // };
 
   if (!isOpen) return null;
 
