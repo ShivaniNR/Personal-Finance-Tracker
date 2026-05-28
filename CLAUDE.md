@@ -4,63 +4,93 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Full-stack personal finance tracker with React frontend, Apollo GraphQL server, and Google Sheets as the database. Features AI-powered voice input via Chrome's experimental Prompt API.
+Full-stack personal finance tracker with a React frontend, a Supabase (Postgres) backend with Row-Level Security, and an Apollo GraphQL server. Transactions can be added by voice/natural language, parsed into structured fields by an LLM (provider-agnostic; Gemini by default, Anthropic supported).
 
 ## Development Commands
 
 ### Client (React + Vite)
 ```bash
 cd client
-npm run dev       # Dev server at http://localhost:5173
-npm run build     # Production build
-npm run lint      # ESLint
-npm run preview   # Preview production build
+npm run dev        # Dev server at http://localhost:5173
+npm run build      # Production build
+npm run lint       # ESLint
+npm run preview    # Preview production build
+npm test           # Run Vitest once
+npm run test:watch # Vitest in watch mode
 ```
 
 ### Server (Node.js + Apollo)
 ```bash
 cd server
-npm start         # Apollo Server at http://localhost:4000 (with nodemon)
+npm start          # Apollo Server at http://localhost:4000 (nodemon via npm run dev)
+npm run dev        # Same, explicit nodemon
+npm test           # Run Vitest once (no server tests yet)
 ```
 
-Both must run simultaneously. The client Apollo Client points to `http://localhost:4000/`.
+Run the server only if you need the AI parsing endpoint (`/api/parse-transaction`). The client's data operations (transactions, categories, dashboard) talk to Supabase directly and work without the server running.
 
 ## Architecture
 
 ### Data Flow
+
+There are two distinct paths:
+
 ```
-React Components → Apollo Client → Apollo Server → Services Layer → Google Sheets API
+# Primary path — client reads/writes Supabase directly
+React Components → React Query (client/src/services/*) → Supabase (Postgres, RLS)
+
+# AI path — the only thing the client calls on the server
+QuickModal (voice) → client/src/services/ai.js → POST /api/parse-transaction → LLM provider
 ```
+
+The Apollo GraphQL server (`server/src/`) implements the same transaction/category/dashboard operations against Supabase, but the **current client does not consume the GraphQL API** — it uses Supabase directly. The GraphQL layer is implemented and auth/RLS-aware, but presently unused by the client except for the REST AI endpoint hosted on the same Express app.
 
 ### Backend (`server/`)
-- `src/index.js` — Apollo Server setup with Express and CORS
-- `src/schema.js` — GraphQL type definitions (Transaction, DashboardData, CategorySummary, MonthlyStats)
-- `src/resolvers.js` — GraphQL resolvers delegating to services
-- `services/database.js` — Google Sheets connection using JWT service account auth
-- `services/transactions.js` — All business logic: CRUD, aggregations, dashboard calculations
-- `services/cache.js` — In-memory cache with 5-minute TTL (keys: `all_transactions`, `dashboard_data`)
+- `src/index.js` — Express app: helmet, CORS (`ALLOWED_ORIGINS`), rate limiting (100 req / 15 min), the `/health` check, the `/api/parse-transaction` AI endpoint, and the Apollo `/graphql` endpoint with JWT auth
+- `src/schema.js` — GraphQL type definitions (Transaction, DashboardData, CategorySummary, MonthlyStats, Category)
+- `src/resolvers.js` — GraphQL resolvers; query Supabase directly and validate mutation input with Zod
+- `services/supabase.js` — Supabase clients: `supabaseAdmin` (service-role, bypasses RLS) and `createUserClient(jwt)` (per-request, RLS-scoped)
+- `services/validation.js` — Zod schemas for mutation input (`AddTransactionInput`, `UpdateTransactionInput`, `DeleteTransactionInput`)
+- `services/ai.js` — `parseTransaction(text, categories)`: builds the system prompt, calls the selected LLM, then parses + validates the JSON response
+- `services/llm/` — provider-agnostic LLM layer (see below)
+
+### LLM Layer (`server/services/llm/`)
+- `index.js` — `getLLM()` reads `LLM_PROVIDER` (default `gemini`), returns the matching adapter, throws on an unknown value
+- `gemini.js` / `anthropic.js` — each exports `chat(system, user) => Promise<string>`, hiding the provider's SDK shape behind one interface
+- Switch providers by setting `LLM_PROVIDER=gemini` or `LLM_PROVIDER=anthropic` in `server/.env` and restarting — no code changes
+- Prompt-building and JSON validation live in `ai.js`, so they are shared across providers
 
 ### Frontend (`client/src/`)
-- `main.jsx` — Apollo Client setup (InMemoryCache, ApolloProvider) and React Router
+- `main.jsx` — React Query (`QueryClientProvider`, 30s staleTime), `AuthProvider`, `ErrorBoundary`, Sonner toaster
 - `App.jsx` — Tab-based routing: Dashboard / Transactions / Analytics
-- `components/` — UI components; `QuickModal.jsx` handles add/edit with voice input
-- `hooks/usePromptAPI.js` — Parses natural language voice input using Chrome's Prompt API
-- `hooks/useQuickModal.js` — Modal open/close state management
-- `graphql/finance-tracker` — All GraphQL query and mutation definitions
+- `lib/supabase.js` — browser Supabase client (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+- `context/AuthContext.jsx` — Supabase auth (session, login/logout)
+- `services/` — data layer over Supabase: `transactions.js`, `categories.js`, `dashboard.js`; plus `ai.js` (REST call to the server's AI endpoint)
+- `components/` — UI; `QuickModal.jsx` handles add/edit and voice input
+- `hooks/useQuickModal.js` — modal open/close state
+- `utils/` — helpers (e.g. `dateRanges.js`), with tests under `utils/__tests__/`
 
-### GraphQL Operations
-- Queries: `GetDashboard`, `GetTransactions`, `GetUserCategories`, `GetTransactionsByCategory`
-- Mutations: `AddTransaction`, `UpdateTransaction`, `DeleteTransaction`
-- Dashboard query polls every 30 seconds (`pollInterval: 30000`)
-- Mutations use `refetchQueries` to keep UI in sync
+### Supabase Database
+- `transactions` — `id` (uuid), `user_id`, `amount`, `type` (`INCOME`|`EXPENSE`), `description`, `category_id`, `date` (YYYY-MM-DD)
+- `categories` — `id` (uuid), `user_id`, `name`, `type`, `icon`, `color`, `is_system`
+- Postgres RPCs: `get_dashboard_data`, `get_user_categories`
+- Row-Level Security scopes rows to the authenticated user; the server uses a per-request user client (`createUserClient`) so resolvers respect RLS
+- Server env (`server/.env`): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`
 
-### Google Sheets Database
-- Single sheet named "Transactions" with columns: `id`, `amount`, `category`, `description`, `date` (YYYY-MM-DD), `type`
-- `type` is either `INCOME` or `EXPENSE`
-- Transaction `id` is a timestamp string
-- Credentials in `server/.env`: `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SPREADSHEET_ID`
+### GraphQL Operations (server-side, implemented; not currently called by the client)
+- Queries: `transactions`, `dashboard`, `transactionsByCategory`, `searchTransactions`, `getUserCategories`
+- Mutations: `addTransaction`, `updateTransaction`, `deleteTransaction`
+- `/graphql` requires a Supabase JWT (`Authorization: Bearer <token>`); the context verifies it and builds an RLS-scoped client
 
-### Voice Input
-- Uses `webkitSpeechRecognition` to capture speech, then passes transcript to Chrome's Prompt API
-- Requires enabling `chrome://flags/#prompt-api-for-gemini-nano` in Chromium browsers
-- Configured via system prompt in `usePromptAPI.js` to extract transaction fields from natural language
+### Voice / AI Input
+- `QuickModal.jsx` uses `webkitSpeechRecognition` to capture speech, then sends the transcript to `client/src/services/ai.js`
+- That posts to `POST /api/parse-transaction` (with the Supabase access token) on the server
+- The server verifies the JWT, fetches the user's categories (RLS-scoped), and calls `parseTransaction`, which routes through `getLLM()` to the configured provider
+- The provider returns JSON; `ai.js` strips fences, parses, and validates it, then the parsed fields auto-fill the form
+- Server env for AI: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `LLM_PROVIDER` (default `gemini`), optional `ANTHROPIC_MODEL` / `GEMINI_MODEL`; client uses `VITE_API_URL` (defaults to `http://localhost:4000`)
+
+### Testing
+- Client uses **Vitest** + **React Testing Library** + **jsdom**, configured in `client/vite.config.js` (`environment: 'jsdom'`, `setupFiles: './src/test/setup.js'`, `globals: true`)
+- `client/src/test/setup.js` loads `@testing-library/jest-dom` matchers
+- Tests live next to source under `__tests__/` directories
+- Server has `vitest` wired into its `test` script but no tests yet
