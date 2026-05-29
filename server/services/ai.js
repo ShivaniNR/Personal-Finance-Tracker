@@ -6,8 +6,14 @@ const { getLLM } = require('./llm');
  * @param {Array<{name: string, type: string}>} categories - User's categories from Supabase
  * @returns {Promise<{amount: number, description: string, type: string, category: string}>}
  */
-async function parseTransaction(text, categories) {
+async function parseTransaction(text, categories, today) {
   const categoryNames = categories.map((c) => c.name).join(', ');
+
+  // Prefer the caller's local date; fall back to server (UTC) date only if it
+  // is missing or malformed, so "today" resolves in the user's timezone.
+  const todayStr = /^\d{4}-\d{2}-\d{2}$/.test(today)
+    ? today
+    : new Date().toISOString().split('T')[0];
 
   const systemPrompt = `You are a financial transaction parser. Extract structured data from natural language input.
 
@@ -27,7 +33,7 @@ Rules:
 - category must match one of the user's categories listed above (case-sensitive)
 - If no category matches well, use "Other"
 - If the input mentions a date, include "date" in YYYY-MM-DD format
-- Today's date is ${new Date().toISOString().split('T')[0]}
+- Today's date is ${todayStr}
 
 Examples:
 - "Spent 500 on groceries at walmart" → {"amount":500,"description":"Groceries at Walmart","type":"EXPENSE","category":"Groceries"}

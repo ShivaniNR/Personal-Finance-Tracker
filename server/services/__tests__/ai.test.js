@@ -6,14 +6,21 @@ import { createRequire } from 'module';
 // (vitest's vi.mock does not reliably intercept CommonJS require() calls.)
 const require = createRequire(import.meta.url);
 
-const state = { chatResponse: '' };
+const state = { chatResponse: '', lastSystem: '' };
 
 const llmPath = require.resolve('../llm/index.js');
 require.cache[llmPath] = {
   id: llmPath,
   filename: llmPath,
   loaded: true,
-  exports: { getLLM: () => ({ chat: async () => state.chatResponse }) },
+  exports: {
+    getLLM: () => ({
+      chat: async (system) => {
+        state.lastSystem = system;
+        return state.chatResponse;
+      },
+    }),
+  },
 };
 
 const { parseTransaction } = require('../ai.js');
@@ -28,6 +35,7 @@ const json = (obj) => JSON.stringify(obj);
 describe('parseTransaction', () => {
   beforeEach(() => {
     state.chatResponse = '';
+    state.lastSystem = '';
   });
 
   it('parses a clean JSON response into structured fields', async () => {
@@ -114,5 +122,28 @@ describe('parseTransaction', () => {
     });
     const withoutDate = await parseTransaction('x', categories);
     expect(withoutDate).not.toHaveProperty('date');
+  });
+
+  it('uses the caller-provided local date in the prompt', async () => {
+    state.chatResponse = json({
+      amount: 5,
+      description: 'Lunch',
+      type: 'EXPENSE',
+      category: 'Food',
+    });
+    await parseTransaction('spent 5 on lunch today', categories, '2026-05-28');
+    expect(state.lastSystem).toContain("Today's date is 2026-05-28");
+  });
+
+  it('falls back to a valid date when today is missing or malformed', async () => {
+    state.chatResponse = json({
+      amount: 5,
+      description: 'Lunch',
+      type: 'EXPENSE',
+      category: 'Food',
+    });
+    await parseTransaction('x', categories, 'not-a-date');
+    expect(state.lastSystem).not.toContain('not-a-date');
+    expect(state.lastSystem).toMatch(/Today's date is \d{4}-\d{2}-\d{2}/);
   });
 });

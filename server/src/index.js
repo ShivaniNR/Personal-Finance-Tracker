@@ -56,7 +56,7 @@ async function startServer() {
       if (authError || !user) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
-      const { text } = req.body;
+      const { text, today } = req.body;
       if (!text || typeof text !== 'string' || text.trim().length === 0) {
         return res.status(400).json({ error: 'Text input is required' });
       }
@@ -68,7 +68,7 @@ async function startServer() {
         console.error('Error fetching categories:', catError);
         return res.status(500).json({ error: 'Failed to fetch categories' });
       }
-      const result = await parseTransaction(text.trim(), categories || []);
+      const result = await parseTransaction(text.trim(), categories || [], today);
       res.json(result);
     } catch (err) {
       console.error('AI parse error:', err);

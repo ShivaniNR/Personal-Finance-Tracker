@@ -16,13 +16,18 @@ export async function parseTransactionAI(text) {
     throw new Error('Not authenticated');
   }
 
+  // Send the user's local date so "today"/relative dates resolve in their
+  // timezone, not the server's UTC (which can be a day ahead).
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   const response = await fetch(`${API_URL}/api/parse-transaction`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, today }),
   });
 
   if (!response.ok) {
