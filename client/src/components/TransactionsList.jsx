@@ -58,7 +58,7 @@ export const TransactionsList = () => {
   const handleUpdateTransaction = async (transactionData) => {
     try {
       await updateMutation.mutateAsync(transactionData);
-    } catch (err) {
+    } catch {
       toast.error('Failed to update transaction. Please try again.');
     }
   };
@@ -128,7 +128,7 @@ export const TransactionsList = () => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
         await deleteMutation.mutateAsync(id);
-      } catch (err) {
+      } catch {
         toast.error('Failed to delete transaction');
       }
     }

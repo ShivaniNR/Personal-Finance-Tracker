@@ -26,7 +26,7 @@ export const Dashboard = ({ dashboardData, timeRange, onTimeRangeChange, onNavig
   const handleAddTransaction = async (transactionData) => {
     try {
       await addMutation.mutateAsync(transactionData);
-    } catch (err) {
+    } catch {
       toast.error('Failed to add transaction. Please try again.');
     }
   };

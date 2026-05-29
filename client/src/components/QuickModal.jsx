@@ -6,7 +6,7 @@ import { parseTransactionAI } from '../services/ai'; // AI feature
 import { getUserCategories } from '../services/categories';
 
 
-export const QuickAddModal = ({ isOpen, onClose, onSubmit, isVoiceMode, setIsVoiceMode, editingTransaction }) => {
+export const QuickAddModal = ({ isOpen, onClose, onSubmit, editingTransaction }) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('EXPENSE');
