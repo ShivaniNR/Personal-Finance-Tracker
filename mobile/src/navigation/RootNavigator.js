@@ -1,6 +1,6 @@
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import MainTabs from './MainTabs';
+import MainStack from './MainStack';
 import AuthNavigator from './AuthNavigator';
 
 // Gate: while restoring the session show a spinner, then route to the app or auth.
@@ -15,5 +15,5 @@ export default function RootNavigator() {
     );
   }
 
-  return session ? <MainTabs /> : <AuthNavigator />;
+  return session ? <MainStack /> : <AuthNavigator />;
 }
