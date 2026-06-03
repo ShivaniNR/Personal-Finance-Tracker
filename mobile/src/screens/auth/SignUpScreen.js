@@ -38,13 +38,10 @@ export default function SignUpScreen({ navigation }) {
       Alert.alert('Sign up failed', error.message);
       return;
     }
-    // If email confirmation is enabled, no session is returned yet.
+    // If email confirmation is enabled, no session is returned yet — send the
+    // user to the OTP screen to enter the code from the email.
     if (!data.session) {
-      Alert.alert(
-        'Confirm your email',
-        'We sent a confirmation link. Confirm your email, then sign in.'
-      );
-      navigation.navigate('Login');
+      navigation.navigate('VerifyOtp', { email: email.trim() });
     }
     // Otherwise onAuthStateChange logs them straight in.
   };

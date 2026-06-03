@@ -42,6 +42,7 @@ export function AuthProvider({ children }) {
           first_name: firstName,
           last_name: lastName,
           display_name: firstName,
+          signup_source: 'web',
         },
       },
     });
