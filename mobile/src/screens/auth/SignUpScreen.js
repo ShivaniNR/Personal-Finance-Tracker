@@ -58,12 +58,14 @@ export default function SignUpScreen({ navigation }) {
           <TextInput
             style={[styles.input, styles.halfInput]}
             placeholder="First name"
+            placeholderTextColor="#9ca3af"
             value={firstName}
             onChangeText={setFirstName}
           />
           <TextInput
             style={[styles.input, styles.halfInput]}
             placeholder="Last name"
+            placeholderTextColor="#9ca3af"
             value={lastName}
             onChangeText={setLastName}
           />
@@ -71,6 +73,7 @@ export default function SignUpScreen({ navigation }) {
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor="#9ca3af"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -80,6 +83,7 @@ export default function SignUpScreen({ navigation }) {
         <TextInput
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor="#9ca3af"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -114,7 +118,7 @@ export default function SignUpScreen({ navigation }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 28 },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 28, color: '#111827' },
   row: { flexDirection: 'row', gap: 12 },
   input: {
     borderWidth: 1,
@@ -124,6 +128,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 14,
+    color: '#111827',
+    backgroundColor: '#fff',
   },
   halfInput: { flex: 1 },
   button: {

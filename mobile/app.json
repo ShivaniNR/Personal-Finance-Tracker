@@ -7,7 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow Finance Tracker to use speech recognition to turn your voice into transaction details.",
+        "NSMicrophoneUsageDescription": "Allow Finance Tracker to access the microphone so you can log transactions by voice."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -15,13 +19,29 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.shivanirupnawar.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Finance Tracker to access the microphone so you can log transactions by voice.",
+          "speechRecognitionPermission": "Allow Finance Tracker to use speech recognition to turn your voice into transaction details."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7b6e57a6-6c5c-4608-82de-e3ab73c03f7e"
+      }
+    }
   }
 }

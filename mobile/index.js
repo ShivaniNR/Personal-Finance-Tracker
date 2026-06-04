@@ -1,3 +1,5 @@
+// Must be the first import so the dev menu / fast-refresh hook into the dev build.
+import 'expo-dev-client';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

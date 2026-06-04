@@ -92,6 +92,7 @@ export default function VerifyOtpScreen({ route, navigation }) {
             if (error) setError('');
           }}
           placeholder="123456"
+          placeholderTextColor="#9ca3af"
           keyboardType="number-pad"
           autoComplete="one-time-code"
           textContentType="oneTimeCode"
@@ -137,7 +138,7 @@ export default function VerifyOtpScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center' },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: '#111827' },
   subtitle: {
     fontSize: 15,
     color: '#666',
@@ -155,6 +156,8 @@ const styles = StyleSheet.create({
     letterSpacing: 6,
     textAlign: 'center',
     marginBottom: 6,
+    color: '#111827',
+    backgroundColor: '#fff',
   },
   inputError: { borderColor: '#dc2626' },
   errorText: { color: '#dc2626', fontSize: 13, marginBottom: 8 },

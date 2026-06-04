@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   addTransaction,
@@ -18,6 +19,8 @@ import {
   deleteTransaction,
 } from '../services/transactions';
 import { useCategories } from '../hooks/useCategories';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import { parseTransactionAI } from '../services/ai';
 
 function formatLocalDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -49,9 +52,38 @@ export default function TransactionFormScreen({ route, navigation }) {
   const [date, setDate] = useState(editing?.date ?? todayLocal());
   const [showPicker, setShowPicker] = useState(false);
   const [errors, setErrors] = useState({});
+  const [parsing, setParsing] = useState(false);
+
+  const voice = useVoiceInput();
 
   const clearError = (field) =>
     setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+
+  // When the user finishes speaking, send the transcript to the AI service
+  // and auto-fill whichever fields it returned.
+  useEffect(() => {
+    if (!voice.transcript) return;
+    const text = voice.transcript;
+    voice.reset();
+    (async () => {
+      setParsing(true);
+      try {
+        const parsed = await parseTransactionAI(text);
+        if (parsed.amount != null) setAmount(String(parsed.amount));
+        if (parsed.type) setType(parsed.type);
+        setDescription(parsed.description || text);
+        if (parsed.category) setCategory(parsed.category);
+        if (parsed.date) setDate(parsed.date);
+        setErrors({});
+      } catch (e) {
+        Alert.alert('Voice parsing failed', e.message || 'Could not parse the transcript.');
+      } finally {
+        setParsing(false);
+      }
+    })();
+    // voice is a stable object; transcript is what we react to
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.transcript]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -177,6 +209,7 @@ export default function TransactionFormScreen({ route, navigation }) {
             clearError('amount');
           }}
           placeholder="0.00"
+          placeholderTextColor="#9ca3af"
           keyboardType="decimal-pad"
         />
       </View>
@@ -184,15 +217,44 @@ export default function TransactionFormScreen({ route, navigation }) {
 
       {/* Description */}
       <Text style={styles.label}>Description</Text>
-      <TextInput
-        style={[styles.input, errors.description && styles.inputError]}
-        value={description}
-        onChangeText={(t) => {
-          setDescription(t);
-          clearError('description');
-        }}
-        placeholder="What was it for?"
-      />
+      <View style={styles.descRow}>
+        <TextInput
+          style={[
+            styles.input,
+            styles.descInput,
+            errors.description && styles.inputError,
+          ]}
+          value={description}
+          onChangeText={(t) => {
+            setDescription(t);
+            clearError('description');
+          }}
+          placeholder="What was it for? (or tap mic)"
+          placeholderTextColor="#9ca3af"
+        />
+        <TouchableOpacity
+          style={[
+            styles.micBtn,
+            voice.listening && styles.micBtnListening,
+            parsing && styles.micBtnBusy,
+          ]}
+          onPress={() => (voice.listening ? voice.stop() : voice.start())}
+          disabled={parsing}
+        >
+          {parsing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <MaterialIcons
+              name={voice.listening ? 'stop' : 'mic'}
+              size={24}
+              color="#fff"
+            />
+          )}
+        </TouchableOpacity>
+      </View>
+      {voice.listening && <Text style={styles.voiceHint}>Listening… speak now.</Text>}
+      {parsing && <Text style={styles.voiceHint}>Parsing transcript…</Text>}
+      {voice.error && <Text style={styles.errorText}>{voice.error}</Text>}
       {errors.description && (
         <Text style={styles.errorText}>{errors.description}</Text>
       )}
@@ -296,6 +358,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 8,
+    color: '#111827',
+    backgroundColor: '#fff',
   },
   amountRow: {
     flexDirection: 'row',
@@ -310,7 +374,7 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#dc2626' },
   errorText: { color: '#dc2626', fontSize: 13, marginBottom: 6 },
   currency: { fontSize: 18, color: '#6b7280', marginRight: 6 },
-  amountInput: { flex: 1, paddingVertical: 12, fontSize: 16 },
+  amountInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: '#111827' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   chip: {
     paddingHorizontal: 12,
@@ -334,4 +398,18 @@ const styles = StyleSheet.create({
   deleteBtn: { paddingVertical: 15, alignItems: 'center', marginTop: 8 },
   deleteText: { color: '#dc2626', fontSize: 15, fontWeight: '600' },
   disabled: { opacity: 0.6 },
+  descRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  descInput: { flex: 1, marginBottom: 0 },
+  micBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtnListening: { backgroundColor: '#dc2626' },
+  micBtnBusy: { opacity: 0.7 },
+  micIcon: { color: '#fff', fontSize: 20 },
+  voiceHint: { color: '#6b7280', fontSize: 12, marginTop: 4, marginBottom: 6 },
 });
