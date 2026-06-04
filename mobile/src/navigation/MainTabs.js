@@ -1,26 +1,28 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { TouchableOpacity, Text } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import { TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import DashboardScreen from '../screens/DashboardScreen';
 import TransactionsScreen from '../screens/TransactionsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 const Tab = createBottomTabNavigator();
 
-// Mirrors the web App.jsx tabs. Shown only when authenticated (see RootNavigator).
+// Mirrors the web App.jsx tabs. The header now shows a profile icon at the
+// top-right that opens the Profile screen (Sign out lives there).
 export default function MainTabs() {
-  const { signOut } = useAuth();
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ navigation }) => ({
         headerRight: () => (
-          <TouchableOpacity onPress={signOut} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#2563eb', fontWeight: '600', fontSize: 15 }}>
-              Sign out
-            </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            style={{ marginRight: 14, padding: 4 }}
+            accessibilityLabel="Open profile"
+          >
+            <MaterialIcons name="account-circle" size={28} color="#2563eb" />
           </TouchableOpacity>
         ),
-      }}
+      })}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} />
