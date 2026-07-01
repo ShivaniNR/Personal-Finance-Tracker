@@ -7,12 +7,28 @@ import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 const Tab = createBottomTabNavigator();
 
+const TAB_ICONS = {
+  Dashboard: 'dashboard',
+  Transactions: 'receipt-long',
+  Analytics: 'analytics',
+};
+
 // Mirrors the web App.jsx tabs. The header now shows a profile icon at the
 // top-right that opens the Profile screen (Sign out lives there).
 export default function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ navigation }) => ({
+      screenOptions={({ navigation, route }) => ({
+        tabBarIcon: ({ color, size }) => (
+          <MaterialIcons
+            name={TAB_ICONS[route.name] || 'circle'}
+            size={size}
+            color={color}
+          />
+        ),
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#6b7280',
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerRight: () => (
           <TouchableOpacity
             onPress={() => navigation.navigate('Profile')}
