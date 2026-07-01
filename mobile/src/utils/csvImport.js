@@ -25,9 +25,12 @@ export const SUPPORTED_BANKS = [
  *
  * @param {string} bankKey
  * @param {string} content - the raw CSV text
+ * @param {Array<{id, name, type}>} userCategories - user's real DB categories
+ *   used to build a default mapping that only references categories that
+ *   actually exist for this user.
  * @returns {{ rawRows: object[], defaultMapping: Record<string, string>, rowCount: number }}
  */
-export function parseAndGetMapping(bankKey, content) {
+export function parseAndGetMapping(bankKey, content, userCategories = []) {
   const parser = PARSERS[bankKey];
   if (!parser) throw new Error(`Unsupported bank: ${bankKey}`);
 
@@ -51,7 +54,7 @@ export function parseAndGetMapping(bankKey, content) {
     throw new Error(`Too many rows (${results.data.length}). Max is ${MAX_ROWS}.`);
   }
 
-  const defaultMapping = parser.getDefaultMapping(results.data);
+  const defaultMapping = parser.getDefaultMapping(results.data, userCategories);
   return {
     rawRows: results.data,
     defaultMapping,

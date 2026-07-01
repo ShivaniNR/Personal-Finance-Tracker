@@ -11,11 +11,13 @@ export async function getTransactions({ limit = 50, offset = 0 } = {}) {
   return data.map(formatTransaction);
 }
 
-export async function addTransaction(transaction) {
-  // Resolve category name to ID
+export async function addTransaction(transaction, { allowCreateCategory = true } = {}) {
+  // Resolve category name to ID. CSV import passes allowCreateCategory:false
+  // so unknown categories fail loudly instead of silently seeding orphans.
   const categoryId = await resolveCategory(
     transaction.category,
-    transaction.type
+    transaction.type,
+    { allowCreate: allowCreateCategory }
   );
 
   // Get current user ID for RLS — INSERT requires user_id to match auth.uid()
@@ -105,8 +107,9 @@ function localDateString() {
   return `${y}-${m}-${day}`;
 }
 
-async function resolveCategory(categoryName, type) {
-  // Try to find existing category
+async function resolveCategory(categoryName, type, { allowCreate = true } = {}) {
+  if (!categoryName) throw new Error('Category is required.');
+
   const { data: existing } = await supabase
     .from('categories')
     .select('id')
@@ -116,7 +119,10 @@ async function resolveCategory(categoryName, type) {
 
   if (existing) return existing.id;
 
-  // Create new category
+  if (!allowCreate) {
+    throw new Error(`Category "${categoryName}" not found in your categories.`);
+  }
+
   const { data: created, error } = await supabase
     .from('categories')
     .insert({

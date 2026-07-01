@@ -61,7 +61,11 @@ export default function ImportCSVScreen({ navigation }) {
         return;
       }
       const content = await FileSystem.readAsStringAsync(file.uri);
-      const { rawRows: rows, defaultMapping } = parseAndGetMapping(bank, content);
+      const { rawRows: rows, defaultMapping } = parseAndGetMapping(
+        bank,
+        content,
+        userCategories
+      );
       setRawRows(rows);
       setMapping(defaultMapping);
       setStage('mapping');
@@ -78,7 +82,7 @@ export default function ImportCSVScreen({ navigation }) {
     const failed = [];
     for (let i = 0; i < transactions.length; i++) {
       try {
-        await addTransaction(transactions[i]);
+        await addTransaction(transactions[i], { allowCreateCategory: false });
         succeeded++;
       } catch (err) {
         failed.push({ ...transactions[i], error: err.message || 'Unknown error' });
@@ -124,6 +128,7 @@ export default function ImportCSVScreen({ navigation }) {
   };
 
   const mappingEntries = Object.entries(mapping);
+  const hasUnmapped = mappingEntries.some(([, appCat]) => !appCat);
   const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
   const bankLabel = SUPPORTED_BANKS.find((b) => b.key === bank)?.label || '';
 
@@ -216,8 +221,16 @@ export default function ImportCSVScreen({ navigation }) {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={startImport}>
-            <Text style={styles.primaryBtnText}>Import {rawRows.length} transactions</Text>
+          <TouchableOpacity
+            style={[styles.primaryBtn, hasUnmapped && styles.btnDisabled]}
+            onPress={startImport}
+            disabled={hasUnmapped}
+          >
+            <Text style={styles.primaryBtnText}>
+              {hasUnmapped
+                ? 'Pick a category for every row to continue'
+                : `Import ${rawRows.length} transactions`}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.linkBtn} onPress={() => setStage('upload')}>
             <Text style={styles.linkText}>← Back</Text>
