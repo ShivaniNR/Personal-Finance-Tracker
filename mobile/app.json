@@ -36,6 +36,16 @@
           "microphonePermission": "Allow Finance Tracker to access the microphone so you can log transactions by voice.",
           "speechRecognitionPermission": "Allow Finance Tracker to use speech recognition to turn your voice into transaction details."
         }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
       ]
     ],
     "extra": {
